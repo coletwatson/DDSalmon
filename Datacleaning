@@ -1,0 +1,47 @@
+#Density Dependence analysis of Sockeye Salmon in Bristol Bay AK (Data Cleaning)
+#Cole Watson November 5, 2024
+
+#Introduce packages (ggplot2 = data visualization, dyplr = data manipulation, lme4 = mixed effects modelling)
+library(ggplot2)
+library(dplyr)
+library(lme4)
+
+#Reading in the original files
+original <- read.csv("Excel Files/Original Data.csv")
+streamsize <- read.csv("Excel Files/Stream Size Data.csv")
+runsize <- read.csv("Excel Files/Total Run.csv")
+
+#Combine plots
+orun <- merge(runsize, original, by = "Year")
+Full <- merge(orun, streamsize, by = "Station")
+
+#Change lower case male and female to Male and Female
+Full$sex[Full$sex == "male"] <- "Male"
+Full$sex[Full$sex == "female"] <- "Female"
+
+# Filter rows with a value greater than 0.1 in the length column and 2 or 3 in the OceanAge column
+salmon <- Full %>%
+  filter(Length > 0.1 & (OceanAge == 2 | OceanAge == 3))
+
+# Remove streams with less than 5 years of data
+stream_years <- salmon %>%
+  group_by(Station) %>%
+  summarize(YearsOfData = n_distinct(Year)) %>%
+  filter(YearsOfData >= 4)
+
+# Filter out streams with less than 5 years of data
+salmon_filtered_streams <- salmon %>%
+  semi_join(stream_years, by = "Station")
+
+# Remove years for streams that have less than 10 fish
+fish_count <- salmon_filtered_streams %>%
+  group_by(Station, Year) %>%
+  tally(name = "FishCount") %>%
+  filter(FishCount >= 10)
+
+# Filter out years with fewer than 10 fish for each stream
+final_salmon_data <- salmon_filtered_streams %>%
+  semi_join(fish_count, by = c("Station", "Year"))
+
+# Save the filtered dataframe as a CSV file
+write.csv(final_salmon_data, file = "Excel Files/CompleteData.csv", row.names = FALSE)
